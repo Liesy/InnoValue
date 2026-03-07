@@ -37,3 +37,68 @@
 ### 总体结论
 无论用资产厚度还是营收水流来框定研发的相对强度，我们都观测到了统一的现象。这证明了我们的结论绝非偶然挑取单一量纲的产物。基准模型中的“研发量”构成当期估值的压舱石；而到了稳健验证的“相对强度”上，则显露出了资本市场对研发“短期风险规避，长期壁垒褒奖”的真实割裂偏好。
 
+---
+
+## 💻 附：Python 代码小白通俗解析 (逐行精讲版)
+
+在这一步的幕后，我们使用了两套强有力的 Python 脚本“魔杖”，把“多维稳健性检验”从理论变成了带数字的真理。
+
+### 📁 绝技一：怎么从百万字的乱麻里抽出“营业收入”？ (`src/extract_revenue.py`)
+由于我们一开始没来得及把“营业收入”总流水抓出来，现在我们要用脚本重返 Excel 中“大海捞针”。
+
+```python
+# 我们事先侦测到巨无霸利润表里的这几列是有用的：
+# A列(股票代码), C列(发成绩单季度的日期), D列(报表类型), H列(传说中隐藏的营业收入)
+usecols = [stkcd_idx, accper_idx, typrep_idx, h_idx]
+
+# 使出 Pandas 处理超级表格的看家本领读取 Excel！
+# skiprows=[1, 2] 意思是：源文件刚开头两行是废话和中文单位，我们不要表头，跳过它们直接读真数据。
+df_income = pd.read_excel(income_path, usecols=usecols, skiprows=[1, 2])
+```
+**小白解读**：这就像我们拿着坐标卡去超大型档案馆找一本书。如果全部重新搬拉一遍书架（几百兆Excel全盘读出来），电脑会卡晕。我们直接告诉电脑：“给我穿墙，除了A、C、D、H列其余全都忽略不要”。并且顺便把大门头前的冗余说明书（第一二行）给切片扔了。
+
+```python
+# Typrep 是报表类型。我们挑出被盖上大写 "A" 戳记的
+# "A" 代表合并报表（即这家公司所有手下分公司的总利润表，无死角）
+typrep_col = df_income.columns[2]
+df_income = df_income[df_income[typrep_col] == 'A'].copy()
+
+# 把找出来的原始表头（没意思的天书代号）强制改成凡人看得懂的“营业总收入”
+h_col_name = df_income.columns[2]
+df_income = df_income.rename(columns={h_col_name: '营业总收入'})
+
+# 用 pd.merge 这把强大的“数位电焊枪”，把营业收入拼命焊接到主面板数据表上
+df_merged = pd.merge(df_panel, df_income, on=['Stkcd', 'Accper'], how='left')
+```
+**小白解读**：拿到新数据后，需要就像玩乐高拼图一样，通过比对【股票代码】和【日期】这两个双卡槽榫卯结构（on=['Stkcd', 'Accper']），把原本孤苦无依的“营业总收入”指标，严丝合缝地自动配对卡入我们原有已经大半成型的全景“宽表清单”中去。
+
+### 📁 绝技二：自动化举办多跑道双重赛跑回归 (`src/06_robustness_checks.py`)
+因为我们想要看到 “拿总资产作分母(占比)” 和 “拿总营收作分母(占比)” 以及各自的 1 年“赛后（滞后期）”一共足足 **4场** 数据大比拼，如果人去一行一行敲公式会非常愚蠢：
+
+```python
+# 我们定义了一个万能计算打字机兼发令枪（Python叫做 定义 函数 function），
+# 只要告诉他你想验证的主角是谁（exog_var变量），它就自动跑流程并打报告出单
+def run_panel_model(exog_var, model_name, desc):
+    # 下面这段似曾相识，和 第六步 的逻辑高度一致，
+    # 但我们挖了一个洞（exog_var），随时允许你塞各种“替换指标（比例占比）”进去。 
+    df_mod = df[['TobinQ', 'Quarter', exog_var] + controls].dropna()
+    quarters_dummy = pd.get_dummies(df_mod['Quarter'], prefix='Q', drop_first=True)
+    ...
+    # 一样套用了排除天然禀赋干扰的神级魔法 "固定效应" (entity_effects=True)
+    mod = PanelOLS(Y, X, entity_effects=True, time_effects=False)
+    # 然后告诉电脑开始训练和预测
+    res = mod.fit(cov_type='clustered', cluster_entity=True)
+    ...
+```
+**小白解读**：我们在编代码时最怕做重复劳动。这里的意思相当于：我们用 Python 搭了一个“通用的测试模具箱口”，接下来你只要把你想测试的“电池”不断往这个箱口里面丢即可。
+
+```python
+# 第一组跑道上的对决选手：把 “研发投入/总资产” 以及 “它在滞后一年前的值” 丢进模具跑结果
+run_panel_model('RD_Intensity', '模型 A1', '当期 R&D 资产占比对估值的影响')
+run_panel_model('Lag_1yr_RD_Intensity', '模型 A2', '滞后1年同期 R&D 资产占比对估值的影响')
+
+# 第二组跑道上的对决选手：把 “研发投入/营业收入” 以及 “它在滞后一年前的值” 丢进去测试
+run_panel_model('RD_Sales_Intensity', '模型 B1', '当期 R&D 营收占比对估值的影响')
+run_panel_model('Lag_1yr_RD_Sales_Intensity', '模型 B2', '滞后1年同期 R&D 营收占比对估值的影响')
+```
+**小白解读**：利用刚做好的“函数模具”，我们只要换下里面的词语点一次回车，电脑就不辞辛劳地连续奔波 4 遍，自动处理好极其复杂的面板对齐、常数项注入、季节剥离和平稳显著性检测等操作，而且全中文打印出了大家之前看到的优美而残酷的稳健性反面证据。这就是高效自动化的魅力！
