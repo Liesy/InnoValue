@@ -27,21 +27,27 @@ def construct_variables():
     # （3）研发强度 RD_Intensity（研发投入 / 营业收入... 这里假设没有单列营业收入总额可以考虑总资产，这里用总资产更为严密）
     df['RD_Intensity'] = df['研发投入'] / df['总资产']
     
-    # 4. 按公司和时间升序排列，构造可能需要的滞后期
-    # 设定多级索引为 面板数据规范
-    df = df.sort_values(by=['Stkcd', 'Year', 'Quarter'])
+    # 4. 按公司和时间升序排列
+    df = df.sort_values(by=['Stkcd', 'Accper'])
     
-    # 构造滞后1期的滞后项 (Lag_1_ln_RD 和 Lag_1_RD_Intensity)
-    # df.groupby('Stkcd')['ln_RD'].shift(1) 可以提取上一个周期的值
-    df['Lag_1_ln_RD'] = df.groupby('Stkcd')['ln_RD'].shift(1)
-    df['Lag_1_RD_Intensity'] = df.groupby('Stkcd')['RD_Intensity'].shift(1)
+    # 构造滞后4期的滞后项 (即前一年同一季度的 R&D，以控制报表累计波动并提供明确的1年滞后)
+    # 策略：创建一个副本，使其日期向未来平移1年(4个季度)，然后再和原表按 (公司, 时间) 进行左连接
+    df_lag = df[['Stkcd', 'Accper', 'ln_RD', 'RD_Intensity']].copy()
+    # 加上一年（通常为四个季度的距离，相当于去年的现在）
+    df_lag['Accper'] = df_lag['Accper'] + pd.DateOffset(years=1)
     
-    # 因为存在部分只有 2021而没2020的情况，shift操作会产生NaN，这是滞后效应测试的正规折损
-    # 作为面板数据可以直接提供包含空值滞后项的csv给后续选用dropna
+    # 重命名准备合并
+    df_lag = df_lag.rename(columns={
+        'ln_RD': 'Lag_1yr_ln_RD',
+        'RD_Intensity': 'Lag_1yr_RD_Intensity'
+    })
+    
+    # 按照实体和时间严格合并，只要原表中当前季度没有找到去年同季度的记录，就会留空 (NaN)
+    df = pd.merge(df, df_lag, on=['Stkcd', 'Accper'], how='left')
     
     # 5. 保存带有生成字段且排序完成的面板数据核心表
     df.to_csv(panel_path, index=False, encoding='utf-8-sig')
-    print(f"新增字段：['Year', 'Quarter', 'ln_Asset', 'ln_RD', 'RD_Intensity', 'Lag_1_ln_RD', 'Lag_1_RD_Intensity']")
+    print(f"新增字段：['Year', 'Quarter', 'ln_Asset', 'ln_RD', 'RD_Intensity', 'Lag_1yr_ln_RD', 'Lag_1yr_RD_Intensity']")
     print(f"=== 对数处理与面板整理完成，已保存至 {panel_path} ===")
 
 if __name__ == "__main__":
