@@ -21,14 +21,14 @@ def run_robustness_regression():
     controls = ['ROE', '净利润增长率', '营业收入增长率', '资产负债率', 'ln_Asset']
     
     output_buffer = []
-    output_buffer.append("========== 稳健性检验：替换变量 (变量=研发总资产强度) ==========\n")
-    output_buffer.append("为剥离公司天然规模带来的研发绝对资金差距，这里将核心解释变量由 ln_RD 替换为 RD_Intensity\n\n")
+    output_buffer.append("========== 稳健性检验：替换变量 (核心解释变量 = 研发/营业总收入 占比) ==========\n")
+    output_buffer.append("为剥离公司天然规模带来的研发绝对资金差距，这里将核心解释变量由 ln_RD 替换为 RD_Sales_Intensity (研发投入/营业总收入)\n\n")
     
     # -------------------------------------------------------------
-    # 模型 (1): 验证假设 H1 (当期 RD_Intensity 对 TobinQ 的影响)
+    # 模型 (1): 验证假设 H1 (当期 RD_Sales_Intensity 对 TobinQ 的影响)
     # -------------------------------------------------------------
-    print("\n运行检验(1): 稳健性 H1 (当期 R&D 强度与公司估值)")
-    exog_vars_1 = ['RD_Intensity'] + controls
+    print("\n运行检验(1): 稳健性 H1 (当期 研发营收占比 与公司估值)")
+    exog_vars_1 = ['RD_Sales_Intensity'] + controls
     
     df_mod1 = df[['TobinQ', 'Quarter'] + exog_vars_1].dropna()
     quarters_dummy_1 = pd.get_dummies(df_mod1['Quarter'], prefix='Q', drop_first=True)
@@ -41,15 +41,15 @@ def run_robustness_regression():
     res1 = mod1.fit(cov_type='clustered', cluster_entity=True)
     
     print(res1.summary)
-    output_buffer.append("【检验1: 稳健假设 H1 - 当期 R&D 强度对估值的影响 (带季度固定效应)】\n")
+    output_buffer.append("【检验1: 稳健假设 H1 - 当期 R&D 营收占比 (Intensity) 对估值的影响 (带季度FE)】\n")
     output_buffer.append(res1.summary.as_text())
     output_buffer.append("\n\n")
     
     # -------------------------------------------------------------
     # 模型 (2): 验证假设 H2 (存在一年滞后效应)
     # -------------------------------------------------------------
-    print("\n运行模型(2): 稳健性 H2 (真实滞后1年同季度 R&D 强度与公司估值)")
-    exog_vars_2 = ['Lag_1yr_RD_Intensity'] + controls
+    print("\n运行模型(2): 稳健性 H2 (真实滞后1年同季度 研发营收占比 与公司估值)")
+    exog_vars_2 = ['Lag_1yr_RD_Sales_Intensity'] + controls
     
     df_mod2 = df[['TobinQ', 'Quarter'] + exog_vars_2].dropna()
     quarters_dummy_2 = pd.get_dummies(df_mod2['Quarter'], prefix='Q', drop_first=True)
@@ -61,7 +61,7 @@ def run_robustness_regression():
     res2 = mod2.fit(cov_type='clustered', cluster_entity=True)
     
     print(res2.summary)
-    output_buffer.append("【检验2: 稳健假设 H2 - 滞后1年同期 R&D 强度对估值的影响 (带季度固定效应)】\n")
+    output_buffer.append("【检验2: 稳健假设 H2 - 滞后1年同期 R&D 营收占比 对估值的影响 (带季度FE)】\n")
     output_buffer.append(res2.summary.as_text())
     output_buffer.append("\n\n")
     
