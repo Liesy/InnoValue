@@ -11,10 +11,10 @@ def run_descriptive_stats():
     
     # 获取需要统计的变量
     df = pd.read_csv(panel_path)
-    # 不包括时间年份标识和原始未对数化的绝对量（如果要的话可以放，这里放模型用的）
+    # 添加处理前绝对值以及修正名称
     vars_to_describe = [
-        'TobinQ', 'ln_RD', 'RD_Intensity', 'Lag_1_ln_RD', 'Lag_1_RD_Intensity',
-        'ROE', '净利润增长率', '营业收入增长率', '资产负债率', 'ln_Asset'
+        'TobinQ', '研发投入', 'ln_RD', 'RD_Intensity', 'Lag_1yr_ln_RD', 'Lag_1yr_RD_Intensity',
+        '总资产', '营业总收入', 'ROE', '净利润增长率', '营业收入增长率', '资产负债率', 'ln_Asset'
     ]
     
     # 计算统计量：样本量、均值、标准差、最小值、25分位数、中位数、75分位数、最大值
