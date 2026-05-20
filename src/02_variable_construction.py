@@ -30,24 +30,28 @@ def construct_variables():
     # 4. 按公司和时间升序排列
     df = df.sort_values(by=['Stkcd', 'Accper'])
     
-    # 构造滞后4期的滞后项 (即前一年同一季度的 R&D，以控制报表累计波动并提供明确的1年滞后)
-    # 策略：创建一个副本，使其日期向未来平移1年(4个季度)，然后再和原表按 (公司, 时间) 进行左连接
-    df_lag = df[['Stkcd', 'Accper', 'ln_RD', 'RD_Intensity']].copy()
-    # 加上一年（通常为四个季度的距离，相当于去年的现在）
-    df_lag['Accper'] = df_lag['Accper'] + pd.DateOffset(years=1)
-    
-    # 重命名准备合并
-    df_lag = df_lag.rename(columns={
-        'ln_RD': 'Lag_1yr_ln_RD',
-        'RD_Intensity': 'Lag_1yr_RD_Intensity'
-    })
-    
-    # 按照实体和时间严格合并，只要原表中当前季度没有找到去年同季度的记录，就会留空 (NaN)
-    df = pd.merge(df, df_lag, on=['Stkcd', 'Accper'], how='left')
-    
+    # 构造滞后项 (前 N 年同季度的 R&D)
+    # 策略：创建副本，日期向未来平移 N 年，再按 (公司, 时间) 左连接
+    # 当原表当前季度找不到 N 年前同季度的记录时留空 (NaN)
+    lag_fields = []
+    for lag_years in [1, 2, 3]:
+        df_lag = df[['Stkcd', 'Accper', 'ln_RD', 'RD_Intensity']].copy()
+        df_lag['Accper'] = df_lag['Accper'] + pd.DateOffset(years=lag_years)
+
+        ln_col = f'Lag_{lag_years}yr_ln_RD'
+        ri_col = f'Lag_{lag_years}yr_RD_Intensity'
+        df_lag = df_lag.rename(columns={
+            'ln_RD': ln_col,
+            'RD_Intensity': ri_col
+        })
+
+        df = pd.merge(df, df_lag, on=['Stkcd', 'Accper'], how='left')
+        lag_fields.extend([ln_col, ri_col])
+
     # 5. 保存带有生成字段且排序完成的面板数据核心表
     df.to_csv(panel_path, index=False, encoding='utf-8-sig')
-    print(f"新增字段：['Year', 'Quarter', 'ln_Asset', 'ln_RD', 'RD_Intensity', 'Lag_1yr_ln_RD', 'Lag_1yr_RD_Intensity']")
+    new_fields = ['Year', 'Quarter', 'ln_Asset', 'ln_RD', 'RD_Intensity'] + lag_fields
+    print(f"新增字段：{new_fields}")
     print(f"=== 对数处理与面板整理完成，已保存至 {panel_path} ===")
 
 if __name__ == "__main__":

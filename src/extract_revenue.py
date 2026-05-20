@@ -74,16 +74,21 @@ def extract_revenue_and_merge():
     missing_revenue = df_merged['营业总收入'].isna().sum()
     print(f"匹配发现营业收入为 NaN 的行数: {missing_revenue} (将在回归中 dropna)")
     
-    # 4. 生成一年滞后期（按 02_ 的平移逻辑）
-    df_lag = df_merged[['Stkcd', 'Accper', 'RD_Sales_Intensity']].copy()
-    df_lag['Accper'] = df_lag['Accper'] + pd.DateOffset(years=1)
-    df_lag = df_lag.rename(columns={'RD_Sales_Intensity': 'Lag_1yr_RD_Sales_Intensity'})
-    
-    df_final = pd.merge(df_merged, df_lag, on=['Stkcd', 'Accper'], how='left')
+    # 4. 生成 1/2/3 年滞后期（按 02_ 的平移逻辑）
+    df_final = df_merged
+    lag_cols_added = []
+    for lag_years in [1, 2, 3]:
+        df_lag = df_final[['Stkcd', 'Accper', 'RD_Sales_Intensity']].copy()
+        df_lag['Accper'] = df_lag['Accper'] + pd.DateOffset(years=lag_years)
+        col_name = f'Lag_{lag_years}yr_RD_Sales_Intensity'
+        df_lag = df_lag.rename(columns={'RD_Sales_Intensity': col_name})
+        df_final = pd.merge(df_final, df_lag, on=['Stkcd', 'Accper'], how='left')
+        lag_cols_added.append(col_name)
     
     # 5. 覆盖保存
     df_final.to_csv(panel_path, index=False, encoding='utf-8-sig')
-    print(f"\n成功添加 ['营业总收入', 'RD_Sales_Intensity', 'Lag_1yr_RD_Sales_Intensity']。")
+    added = ['营业总收入', 'RD_Sales_Intensity'] + lag_cols_added
+    print(f"\n成功添加 {added}。")
     print(f"覆盖写回 {panel_path}")
 
 if __name__ == "__main__":
