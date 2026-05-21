@@ -111,15 +111,16 @@
 | **00** | `utils/extract_and_merge.py` | (预处理) 解析 CSMAR 庞大的原始 Excel 财务多表，并按股票代码 `Stkcd` 和报表期提纯组装基础大宽表 (`raw_data/merged_data.csv`) |
 | **00-B** | `src/extract_revenue.py` | (特征补充) 专门从利润表剥离提取核心分母特征“营业总收入”，用于计算营收比滞后参数 |
 | **01** | `src/01_data_cleaning.py` | 清洗缺失样本，并在 1% 与 99% 分位数执行严格的极值 Winsorize 缩尾平滑处理 |
-| **02** | `src/02_variable_construction.py` | 转化绝对金额对数 ($ln$)；构建基于总资产占比的研发强度；应用时间平移法计算年度滞后因子 |
+| **02** | `src/02_variable_construction.py` | 转化绝对金额对数 ($ln$)；构建基于总资产占比的研发强度；应用时间平移法计算 1/2/3 年度滞后因子 |
 | **03** | `src/03_descriptive_stats.py` | 输出面板样本数据关键变量分布情况的中英文对照描述性统计报表 |
-| **04** | `src/04_correlation_vif.py` | 构建 Pearson 矩阵并实施多重共线性诊断 (VIF) 方差膨胀检测 |
+| **04** | `src/04_correlation_vif.py` | 构建带 P 值显著性标注的 Pearson 矩阵，并按各模型变量组合分组实施 VIF 方差膨胀检测 |
 | **05** | `src/05_baseline_regression.py` | 应用面板数据个体固定效应以及聚类鲁棒标准误 (`PanelOLS`) 并导入季度虚拟控制变量，实施主回归测算 |
 | **06** | `src/06_robustness_checks.py` | 引入并列循环的多维替换变量（研发/总资产 及 研发/营业收入），自动比对验证短长期的估值倒置反转规律 |
+| **07** | `src/07_dynamic_lag_analysis.py` | 多期滞后动态分析：对三种 R&D 度量维度在当期、滞后 1/2/3 年的 12 模型 PanelOLS 系数演进对比 |
 
 ## 快速复现 (Quick Start)
 
-环境依赖要求：Python 3.12 及以上，核心分析包基于 `pandas`, `numpy`, `statsmodels`, `linearmodels`。
+环境依赖要求：Python 3.12 及以上，核心分析包基于 `pandas`, `numpy`, `scipy`, `statsmodels`, `linearmodels`。
 
 ```bash
 # 1. 提取原始数据表并在宽表中融合营业总收入
@@ -133,9 +134,12 @@ python src/03_descriptive_stats.py
 python src/04_correlation_vif.py
 python src/05_baseline_regression.py
 python src/06_robustness_checks.py
+python src/07_dynamic_lag_analysis.py
 ```
 
 ## 核心实证结论预告
 
 本项目在研究论证中发现了强烈的**戴维斯双击（Davis Double Play）机制异响**：
-即大金额层面的研发资金规模会很快在当期推高企业市值；但在相对强度的考量维度中（即剥离规模量纲后审视研发下注比例），短期的市场倾向于惩罚这些报表利润受到极度压抑的创新开拓企业。然而历经一年季报的沉淀出清后，前期的超额高比例研发投入会在下一年爆发出惊人的估值跨越反转溢价，全面构筑起行业难以逾越的技术与资本壁垒。详细学术推演请见 `docs/Chapter_Empirical_Study.md`。
+即大金额层面的研发资金规模会很快在当期推高企业市值；但在相对强度的考量维度中（即剥离规模量纲后审视研发下注比例），短期的市场倾向于惩罚这些报表利润受到极度压抑的创新开拓企业。然而历经一至两年季报的沉淀出清后，前期的超额高比例研发投入会爆发出惊人的估值跨越反转溢价。
+
+多期滞后动态分析进一步揭示了估值反转的**倒 U 型时序轨迹**：研发营收比的估值系数从当期 -0.24 → 滞后1年 +12.15 → **滞后2年 +15.93 (P=0.046, 统计显著)** → 滞后3年 +13.97，在第二年达到峰值后逐渐回落。详细学术推演请见 `docs/Chapter_Empirical_Study.md`。
